@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Webmail - PennCloud</title>
+    <link rel="stylesheet" href="styles/webmail.css">
+    <style>
+        .nav-links {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+        }
+        .logout-btn {
+            background-color: #f44336;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .logout-btn:hover {
+            background-color: #d32f2f;
+        }
+        
+        .mail-actions {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+        }
+        
+        .action-btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        
+        .reply-btn {
+            background-color: #2196F3;
+            color: white;
+        }
+        
+        .forward-btn {
+            background-color: #4CAF50;
+            color: white;
+        }
+        
+        .delete-btn {
+            background-color: #f44336;
+            color: white;
+        }
+        
+        .action-btn:hover {
+            opacity: 0.9;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+        }
+        
+        .modal-content {
+            background-color: #fefefe;
+            margin: 10% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 600px;
+            border-radius: 5px;
+        }
+        
+        .close-btn {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        
+        .close-btn:hover {
+            color: black;
+        }
+        
+        .email-form input, .email-form textarea {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
+        .email-form button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        
+        .email-form button:hover {
+            background-color: #45a049;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #666;
+        }
+        
+        .empty-state h3 {
+            font-size: 1.5em;
+            margin-bottom: 10px;
+        }
+        
+        .empty-state p {
+            font-size: 1.1em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+	<div class="nav-header">
+	    <div class="logo-text">PennCloud</div>
+	    <button onclick="logout()" class="logout-btn">Logout</button>
+	</div>
+
+	<div class="nav-links">
+	    <a href="/storage">Storage</a>
+	    <a href="/">Home</a>
+	</div>
+
+        <h1>Webmail</h1>
+        <button class="compose-btn" id="compose-btn">Compose Email</button>
+        
+        <div class="main-content">
+            <div class="mail-list" id="mail-list">
+                <h2>Inbox</h2>
+                <div class="empty-state">
+                    <h3>Your inbox is empty</h3>
+                    <p>You don't have any emails yet.</p>
+                </div>
+            </div>
+            
+            <div class="mail-content" id="mail-content">
+                <div class="empty-state">
+                    <h3>No email selected</h3>
+                    <p>Select an email from your inbox to view its content.</p>
+                </div>
+            </div>
+        </div>
+        
+        <div id="compose-modal" class="modal">
+            <div class="modal-content">
+                <span class="close-btn" id="compose-close-btn">&times;</span>
+                <h2>Compose Email</h2>
+                <form class="email-form" id="compose-form">
+                    <input type="text" id="compose-recipient" name="recipient" placeholder="To (username@penncloud)" required>
+                    <input type="text" id="compose-subject" name="subject" placeholder="Subject" required>
+                    <textarea id="compose-message" name="message" placeholder="Message content" rows="8"></textarea>
+                    <button type="submit">Send</button>
+                </form>
+            </div>
+        </div>
+        
+        <div id="forward-modal" class="modal">
+            <div class="modal-content">
+                <span class="close-btn" id="forward-close-btn">&times;</span>
+                <h2>Forward Email</h2>
+                <form class="email-form" id="forward-form">
+                    <input type="hidden" id="forward-email-id" name="email_id">
+                    <input type="text" id="forward-recipients" name="recipients" placeholder="To (recipient@example.com, recipient2@example.com)" required>
+                    <button type="submit">Forward</button>
+                </form>
+            </div>
+        </div>
+        
+        <div id="reply-modal" class="modal">
+            <div class="modal-content">
+                <span class="close-btn" id="reply-close-btn">&times;</span>
+                <h2>Reply to Email</h2>
+                <form class="email-form" id="reply-form">
+                    <input type="hidden" id="reply-email-id" name="email_id">
+                    <div id="reply-to-info"></div>
+                    <textarea id="reply-message" name="message" placeholder="Your reply" rows="8" required></textarea>
+                    <button type="submit">Send Reply</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const composeModal = document.getElementById('compose-modal');
+        const composeCloseBtn = document.getElementById('compose-close-btn');
+        const composeForm = document.getElementById('compose-form');
+        
+        const forwardModal = document.getElementById('forward-modal');
+        const forwardCloseBtn = document.getElementById('forward-close-btn');
+        const forwardForm = document.getElementById('forward-form');
+        
+        const replyModal = document.getElementById('reply-modal');
+        const replyCloseBtn = document.getElementById('reply-close-btn');
+        const replyForm = document.getElementById('reply-form');
+        
+        function logout() {
+            fetch('/api/logout', {
+                method: 'POST',
+                credentials: 'same-origin'
+            })
+            .then(response => {
+                if (response.ok || response.redirected) {
+                    window.location.href = '/login';
+                }
+            })
+            .catch(error => {
+                console.error('Logout failed:', error);
+                window.location.href = '/login';
+            });
+        }
+        
+        composeCloseBtn.onclick = function() { 
+            composeModal.style.display = "none"; 
+        }
+        
+        forwardCloseBtn.onclick = function() {
+            forwardModal.style.display = "none";
+        }
+        
+        replyCloseBtn.onclick = function() {
+            replyModal.style.display = "none";
+        }
+        
+        window.onclick = function(event) {
+            if (event.target == composeModal) { 
+                composeModal.style.display = "none"; 
+            }
+            if (event.target == forwardModal) {
+                forwardModal.style.display = "none";
+            }
+            if (event.target == replyModal) {
+                replyModal.style.display = "none";
+            }
+        }
+        
+        document.getElementById('compose-btn').onclick = function() {
+            composeModal.style.display = "block";
+        }
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            fetchEmails();
+        });
+        
+        function fetchEmails() {
+            const mailList = document.getElementById('mail-list');
+            
+            while (mailList.children.length > 1) {
+                mailList.removeChild(mailList.lastChild);
+            }
+            
+            const loadingDiv = document.createElement('div');
+            loadingDiv.id = 'loading-indicator';
+            loadingDiv.textContent = 'Loading emails...';
+            mailList.appendChild(loadingDiv);
+            
+            fetch('/api/emails', {
+                method: 'GET',
+                credentials: 'same-origin'
+            })
+            .then(response => {
+                if (response.status === 503) {
+                    return response.text().then(html => {
+                        document.open();
+                        document.write(html);
+                        document.close();
+                        throw new Error('Service down');
+                    });
+                }
+                
+                if (!response.ok) {
+                    throw new Error('Failed to fetch emails');
+                }
+                return response.text();
+            })
+            .then(text => {
+                const loadingIndicator = document.getElementById('loading-indicator');
+                if (loadingIndicator) {
+                    mailList.removeChild(loadingIndicator);
+                }
+                
+                const emails = parseEmailsText(text);
+                
+                if (emails.length === 0) {
+                    const emptyDiv = document.createElement('div');
+                    emptyDiv.className = 'empty-state';
+                    emptyDiv.innerHTML = '<h3>Your inbox is empty</h3><p>You don\'t have any emails yet.</p>';
+                    mailList.appendChild(emptyDiv);
+                    return;
+                }
+                
+                emails.forEach((email, index) => {
+                    const emailDiv = document.createElement('div');
+                    emailDiv.classList.add('mail-item');
+                    
+                    if (!email.is_read) {
+                        emailDiv.classList.add('unread');
+                    }
+                    
+                    const timestamp = new Date(email.timestamp);
+                    const formattedDate = timestamp.toLocaleString(undefined, {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
+                    
+                    emailDiv.innerHTML = `
+                        <div><strong>${email.sender}</strong></div>
+                        <div>${email.subject}</div>
+                        <small>${formattedDate}</small>
+                    `;
+                    
+                    emailDiv.addEventListener('click', function() {
+                        displayEmail(email);
+                    });
+                    
+                    mailList.appendChild(emailDiv);
+                });
+            })
+            .catch(error => {
+                console.error('Error fetching emails:', error);
+                
+                if (error.message === 'Service down') {
+                    return;
+                }
+                
+                const loadingIndicator = document.getElementById('loading-indicator');
+                if (loadingIndicator) {
+                    mailList.removeChild(loadingIndicator);
+                }
+                
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'error-state';
+                errorDiv.innerHTML = '<h3>Error</h3><p>Failed to load emails. Please try again later.</p>';
+                mailList.appendChild(errorDiv);
+            });
+        }
+        
+        function unescapeContent(content) {
+            return content.replace(/\\n/g, '\n').replace(/\\\\/g, '\\');
+        }
+        
+        function parseEmailsText(text) {
+            const lines = text.split('\n');
+            const emailCount = parseInt(lines[0], 10) || 0;
+            const emails = [];
+            
+            if (emailCount === 0) {
+                return emails;
+            }
+            
+            let currentEmail = null;
+            
+            for (let i = 1; i < lines.length; i++) {
+                const line = lines[i].trim();
+                
+                if (line === "-----EMAIL_START-----") {
+                    currentEmail = {};
+                    continue;
+                }
+                
+                if (line === "-----EMAIL_END-----") {
+                    if (currentEmail) {
+                        emails.push(currentEmail);
+                    }
+                    continue;
+                }
+                
+                if (currentEmail) {
+                    if (line.startsWith("ID: ")) {
+                        currentEmail.id = line.substring(4);
+                    } else if (line.startsWith("CONTENT: ")) {
+                        const emailRawContent = unescapeContent(line.substring(9));
+                        
+                        const senderMatch = emailRawContent.match(/Sender: ([^|]+)\|/);
+                        const subjectMatch = emailRawContent.match(/Subject: ([^|]+)\|/);
+                        const timeMatch = emailRawContent.match(/Time: ([^|]+)\|/);
+                        const contentMatch = emailRawContent.match(/Content: (.*?)$/);
+                        
+                        currentEmail.sender = senderMatch ? senderMatch[1] : 'Unknown';
+                        currentEmail.subject = subjectMatch ? subjectMatch[1] : 'No Subject';
+                        currentEmail.timestamp = timeMatch ? timeMatch[1] : new Date().toISOString();
+                        currentEmail.content = contentMatch ? contentMatch[1].replace(/\|/g, '\n') : '';
+                    } else if (line.startsWith("READ: ")) {
+                        currentEmail.is_read = line.substring(6) === "1";
+                    }
+                }
+            }
+            
+            return emails;
+        }
+        
+        function displayEmail(email) {
+            const contentDiv = document.getElementById('mail-content');
+            
+            let content = email.content.replace(/\n/g, '<br>');
+            
+            contentDiv.innerHTML = `
+                <h3>${email.subject}</h3>
+                <div class="mail-info">
+                    <p><strong>From:</strong> ${email.sender}</p>
+                    <p><strong>Subject:</strong> ${email.subject}</p>
+                    <p><strong>Date:</strong> ${new Date(email.timestamp).toLocaleString()}</p>
+                </div>
+                <div class="mail-body">
+                    ${content}
+                </div>
+                <div class="mail-actions">
+                    <button class="action-btn reply-btn" onclick="replyEmail('${email.id}', '${email.sender}', '${email.subject}')">Reply</button>
+                    <button class="action-btn forward-btn" onclick="forwardEmail('${email.id}')">Forward</button>
+                    <button class="action-btn delete-btn" onclick="deleteEmail('${email.id}')">Delete</button>
+                </div>
+            `;
+            
+            markEmailAsRead(email.id);
+        }
+        
+        function markEmailAsRead(emailId) {
+            console.log('Marking email ' + emailId + ' as read');
+        }
+        
+        function replyEmail(id, sender, subject) {
+            document.getElementById('reply-email-id').value = id;
+            document.getElementById('reply-to-info').innerHTML = `<p><strong>To:</strong> ${sender}</p><p><strong>Subject:</strong> RE: ${subject}</p>`;
+            document.getElementById('reply-message').value = '';
+            replyModal.style.display = "block";
+        }
+        
+        function forwardEmail(id) {
+            document.getElementById('forward-email-id').value = id;
+            document.getElementById('forward-recipients').value = '';
+            forwardModal.style.display = "block";
+        }
+        
+        function deleteEmail(id) {
+            if (!confirm('Are you sure you want to delete this email?')) {
+                return;
+            }
+            
+            const deleteButton = document.querySelector('.delete-btn');
+            const originalButtonText = deleteButton.textContent;
+            deleteButton.disabled = true;
+            deleteButton.textContent = 'Deleting...';
+            
+            fetch('/api/delete-email', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: `email_id=${encodeURIComponent(id)}`,
+                credentials: 'same-origin'
+            })
+            .then(response => {
+                if (response.status === 503) {
+                    return response.text().then(html => {
+                        document.open();
+                        document.write(html);
+                        document.close();
+                        throw new Error('Service down');
+                    });
+                }
+                return response.text();
+            })
+            .then(text => {
+                deleteButton.disabled = false;
+                deleteButton.textContent = originalButtonText;
+                
+                if (text.startsWith('success:')) {
+                    alert('Email deleted successfully!');
+                    document.getElementById('mail-content').innerHTML = `
+                        <div class="empty-state">
+                            <h3>No email selected</h3>
+                            <p>Select an email from your inbox to view its content.</p>
+                        </div>
+                    `;
+                    fetchEmails();
+                } else {
+                    alert('Failed to delete email: ' + text);
+                }
+            })
+            .catch(error => {
+                console.error('Error deleting email:', error);
+                if (error.message !== 'Service down') {
+                    deleteButton.disabled = false;
+                    deleteButton.textContent = originalButtonText;
+                    alert('Failed to delete email due to a network error.');
+                }
+            });
+        }
+        
+        composeForm.onsubmit = function(e) {
+            e.preventDefault();
+            
+            const recipient = document.getElementById('compose-recipient').value;
+            const subject = document.getElementById('compose-subject').value;
+            const message = document.getElementById('compose-message').value;
+            
+            const sendButton = composeForm.querySelector('button[type="submit"]');
+            const originalButtonText = sendButton.textContent;
+            sendButton.disabled = true;
+            sendButton.textContent = 'Sending...';
+            
+            fetch('/api/send-email', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: `recipient=${encodeURIComponent(recipient)}&subject=${encodeURIComponent(subject)}&message=${encodeURIComponent(message)}`,
+                credentials: 'same-origin'
+            })
+            .then(response => {
+                if (response.status === 503) {
+                    return response.text().then(html => {
+                        document.open();
+                        document.write(html);
+                        document.close();
+                        throw new Error('Service down');
+                    });
+                }
+                return response.text();
+            })
+            .then(text => {
+                sendButton.disabled = false;
+                sendButton.textContent = originalButtonText;
+                
+                if (text.startsWith('success:')) {
+                    alert('Email sent successfully!');
+                    composeModal.style.display = "none";
+                    composeForm.reset();
+                } else {
+                    alert('Failed to send email: ' + text);
+                }
+            })
+            .catch(error => {
+                console.error('Error sending email:', error);
+                if (error.message !== 'Service down') {
+                    sendButton.disabled = false;
+                    sendButton.textContent = originalButtonText;
+                    alert('Failed to send email due to a network error.');
+                }
+            });
+        }
+        
+        forwardForm.onsubmit = function(e) {
+            e.preventDefault();
+            
+            const emailId = document.getElementById('forward-email-id').value;
+            const recipients = document.getElementById('forward-recipients').value;
+            
+            const forwardButton = forwardForm.querySelector('button[type="submit"]');
+            const originalButtonText = forwardButton.textContent;
+            forwardButton.disabled = true;
+            forwardButton.textContent = 'Forwarding...';
+            
+            fetch('/api/forward-email', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: `email_id=${encodeURIComponent(emailId)}&recipients=${encodeURIComponent(recipients)}`,
+                credentials: 'same-origin'
+            })
+            .then(response => {
+                if (response.status === 503) {
+                    return response.text().then(html => {
+                        document.open();
+                        document.write(html);
+                        document.close();
+                        throw new Error('Service down');
+                    });
+                }
+                return response.text();
+            })
+            .then(text => {
+                forwardButton.disabled = false;
+                forwardButton.textContent = originalButtonText;
+                
+                if (text.startsWith('success:')) {
+                    alert('Email forwarded successfully!');
+                    forwardModal.style.display = "none";
+                    forwardForm.reset();
+                } else {
+                    alert('Failed to forward email: ' + text);
+                }
+            })
+            .catch(error => {
+                console.error('Error forwarding email:', error);
+                if (error.message !== 'Service down') {
+                    forwardButton.disabled = false;
+                    forwardButton.textContent = originalButtonText;
+                    alert('Failed to forward email due to a network error.');
+                }
+            });
+        }
+        
+        replyForm.onsubmit = function(e) {
+            e.preventDefault();
+            
+            const emailId = document.getElementById('reply-email-id').value;
+            const message = document.getElementById('reply-message').value;
+            
+            const replyButton = replyForm.querySelector('button[type="submit"]');
+            const originalButtonText = replyButton.textContent;
+            replyButton.disabled = true;
+            replyButton.textContent = 'Sending...';
+            
+            fetch('/api/reply-email', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: `email_id=${encodeURIComponent(emailId)}&message=${encodeURIComponent(message)}`,
+                credentials: 'same-origin'
+            })
+            .then(response => {
+                if (response.status === 503) {
+                    return response.text().then(html => {
+                        document.open();
+                        document.write(html);
+                        document.close();
+                        throw new Error('Service down');
+                    });
+                }
+                return response.text();
+            })
+            .then(text => {
+                replyButton.disabled = false;
+                replyButton.textContent = originalButtonText;
+                
+                if (text.startsWith('success:')) {
+                    alert('Reply sent successfully!');
+                    replyModal.style.display = "none";
+                    replyForm.reset();
+                } else {
+                    alert('Failed to send reply: ' + text);
+                }
+            })
+            .catch(error => {
+                console.error('Error sending reply:', error);
+                if (error.message !== 'Service down') {
+                    replyButton.disabled = false;
+                    replyButton.textContent = originalButtonText;
+                    alert('Failed to send reply due to a network error.');
+                }
+            });
+        }
+    </script>
+</body>
+</html> 

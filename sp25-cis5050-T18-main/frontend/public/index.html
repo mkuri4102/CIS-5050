@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Penn Cloud | Home</title>
+    <link rel="stylesheet" href="styles/index.css">
+</head>
+<body>
+    <div class="container">
+        <div class="logo-text">PennCloud</div>
+
+        <h1>Welcome to Penn Cloud</h1>
+        <p>Your personal cloud platform for storage and mail.</p>
+
+        <div class="nav-links">
+            <a href="/login">Login</a>
+            <a href="/signup">Sign Up</a>
+        </div>
+        
+        <div class="game-title">Play Ping Pong While You're Here!</div>
+        <div class="game-container">
+            <canvas id="pong-canvas" width="500" height="250"></canvas>
+        </div>
+        <div class="game-instructions">
+            Use W/S or Up/Down arrow keys to play. Click on the game to start.
+        </div>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const canvas = document.getElementById('pong-canvas');
+            const ctx = canvas.getContext('2d');
+            const width = canvas.width;
+            const height = canvas.height;
+            
+            let gameStarted = false;
+            let ballX = width / 2;
+            let ballY = height / 2;
+            let ballSpeedX = 5;
+            let ballSpeedY = 5;
+            const ballRadius = 8;
+
+            const paddleHeight = 70;
+            const paddleWidth = 12;
+            const paddleOffset = 15;
+            
+            let leftPaddleY = height / 2 - paddleHeight / 2;
+            let rightPaddleY = height / 2 - paddleHeight / 2;
+            
+            let leftScore = 0;
+            let rightScore = 0;
+            const paddleSpeed = 6;
+            
+            const computerDifficulty = 0.85;
+            
+            // Track keys pressed
+            const keys = {
+                up: false,
+                down: false,
+                w: false,
+                s: false
+            };
+            
+            // Listen for keyboard events
+            window.addEventListener('keydown', (e) => {
+                switch (e.key) {
+                    case 'ArrowUp': keys.up = true; break;
+                    case 'ArrowDown': keys.down = true; break;
+                    case 'w': case 'W': keys.w = true; break;
+                    case 's': case 'S': keys.s = true; break;
+                }
+            });
+            
+            window.addEventListener('keyup', (e) => {
+                switch (e.key) {
+                    case 'ArrowUp': keys.up = false; break;
+                    case 'ArrowDown': keys.down = false; break;
+                    case 'w': case 'W': keys.w = false; break;
+                    case 's': case 'S': keys.s = false; break;
+                }
+            });
+            
+            // Start game on canvas click
+            canvas.addEventListener('click', () => {
+                if (!gameStarted) {
+                    gameStarted = true;
+                    animate();
+                }
+            });
+            
+            // Draw functions
+            function drawRect(x, y, width, height, color) {
+                ctx.fillStyle = color;
+                ctx.fillRect(x, y, width, height);
+            }
+            
+            function drawCircle(x, y, radius, color) {
+                ctx.fillStyle = color;
+                ctx.beginPath();
+                ctx.arc(x, y, radius, 0, Math.PI * 2, false);
+                ctx.fill();
+            }
+            
+            function drawText(text, x, y, color, size) {
+                ctx.fillStyle = color;
+                ctx.font = `${size}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.fillText(text, x, y);
+            }
+            
+            function drawNet() {
+                for (let i = 0; i < height; i += 15) {
+                    drawRect(width/2 - 1, i, 2, 10, 'rgba(255,255,255,0.5)');
+                }
+            }
+            
+            // Game logic
+            function update() {
+                // Move paddles
+                if ((keys.w || keys.up) && leftPaddleY > 0) {
+                    leftPaddleY -= paddleSpeed;
+                }
+                if ((keys.s || keys.down) && leftPaddleY < height - paddleHeight) {
+                    leftPaddleY += paddleSpeed;
+                }
+                
+                // Computer AI for right paddle
+                const rightPaddleCenter = rightPaddleY + paddleHeight/2;
+                if (ballX > width * 0.6) { // Only move when ball is on its side
+                    // Add randomness to make it beatable
+                    if (Math.random() < computerDifficulty) {
+                        if (rightPaddleCenter < ballY - 5) {
+                            rightPaddleY += paddleSpeed * 0.7;
+                        } else if (rightPaddleCenter > ballY + 5) {
+                            rightPaddleY -= paddleSpeed * 0.7;
+                        }
+                    }
+                }
+                
+                // Keep paddles within bounds
+                rightPaddleY = Math.max(0, Math.min(height - paddleHeight, rightPaddleY));
+                
+                // Move ball
+                ballX += ballSpeedX;
+                ballY += ballSpeedY;
+                
+                // Ball collision with top and bottom
+                if (ballY - ballRadius < 0 || ballY + ballRadius > height) {
+                    ballSpeedY = -ballSpeedY;
+                    // Play sound
+                    playSound('wall');
+                }
+                
+                // Ball collision with paddles
+                if (ballX - ballRadius < paddleOffset + paddleWidth && 
+                    ballY > leftPaddleY && 
+                    ballY < leftPaddleY + paddleHeight) {
+                    
+                    ballSpeedX = Math.abs(ballSpeedX); // Make sure it's going right
+                    // Add some angle based on where it hit the paddle
+                    const diff = ballY - (leftPaddleY + paddleHeight/2);
+                    ballSpeedY = diff * 0.2;
+                    // Play sound
+                    playSound('paddle');
+                }
+                
+                if (ballX + ballRadius > width - paddleOffset - paddleWidth && 
+                    ballY > rightPaddleY && 
+                    ballY < rightPaddleY + paddleHeight) {
+                    
+                    ballSpeedX = -Math.abs(ballSpeedX); // Make sure it's going left
+                    // Add some angle based on where it hit the paddle
+                    const diff = ballY - (rightPaddleY + paddleHeight/2);
+                    ballSpeedY = diff * 0.2;
+                    // Play sound
+                    playSound('paddle');
+                }
+                
+                // Reset ball if it goes past paddle
+                if (ballX < 0) {
+                    rightScore++;
+                    playSound('score');
+                    resetBall();
+                } else if (ballX > width) {
+                    leftScore++;
+                    playSound('score');
+                    resetBall();
+                }
+            }
+            
+            function resetBall() {
+                ballX = width / 2;
+                ballY = height / 2;
+                ballSpeedX = -ballSpeedX;
+                ballSpeedY = Math.random() * 6 - 3;
+            }
+            
+            function render() {
+                // Clear canvas
+                drawRect(0, 0, width, height, '#000');
+                
+                // Draw net
+                drawNet();
+                
+                // Draw paddles
+                drawRect(paddleOffset, leftPaddleY, paddleWidth, paddleHeight, '#fff');
+                drawRect(width - paddleOffset - paddleWidth, rightPaddleY, paddleWidth, paddleHeight, '#fff');
+                
+                // Draw ball
+                drawCircle(ballX, ballY, ballRadius, '#fff');
+                
+                // Draw score
+                drawText(leftScore, width/4, 30, '#fff', 24);
+                drawText(rightScore, 3*width/4, 30, '#fff', 24);
+            }
+            
+            function drawStartScreen() {
+                drawRect(0, 0, width, height, '#000');
+                drawText('PONG', width/2, height/2 - 20, '#fff', 28);
+                drawText('Click to Play', width/2, height/2 + 20, '#fff', 16);
+            }
+            
+            function playSound(type) {
+            }
+            
+            function animate() {
+                if (!gameStarted) {
+                    drawStartScreen();
+                    return;
+                }
+                
+                update();
+                render();
+                requestAnimationFrame(animate);
+            }
+            
+            drawStartScreen();
+        });
+    </script>
+</body>
+</html>

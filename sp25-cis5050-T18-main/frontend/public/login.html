@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Login - PennCloud</title>
+    <link rel="stylesheet" href="styles/login.css">
+</head>
+<body>
+    <div class="container">
+        <div class="logo-text">PennCloud</div>
+        
+        <h1>Login</h1>
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="username">Username:</label>
+                <input type="text" id="username" name="username" required>
+            </div>
+            <div class="form-group">
+                <label for="password">Password:</label>
+                <input type="password" id="password" name="password" required>
+            </div>
+            <button type="submit">Login</button>
+            <div class="reset-password">
+                <a href="/reset-password">Reset Password</a>
+            </div>
+            <div class="home-link">
+                <a href="/">Back to Home</a>
+            </div>
+            <div id="error-message" class="error" style="display: none; color: red; margin-top: 10px;">
+                Invalid username or password
+            </div>
+            <div id="success-message" class="success" style="display: none; color: green; margin-top: 10px;">
+                Account created successfully! Please login.
+            </div>
+        </form>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.has('error')) {
+                document.getElementById('error-message').style.display = 'block';
+            }
+            if (urlParams.has('success') && urlParams.get('success') === 'signup') {
+                document.getElementById('success-message').style.display = 'block';
+            }
+            
+            document.getElementById('loginForm').addEventListener('submit', async function(e) {
+                e.preventDefault();
+                const username = document.getElementById('username').value;
+                const password = document.getElementById('password').value;
+                
+                if (username && password) {
+                    try {
+                        const formData = new URLSearchParams();
+                        formData.append('username', username);
+                        formData.append('password', password);
+                        
+                        const response = await fetch('/api/login', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/x-www-form-urlencoded'
+                            },
+                            body: formData.toString()
+                        });
+                        
+                        if (response.status === 503) {
+                            const html = await response.text();
+                            document.open();
+                            document.write(html);
+                            document.close();
+                            throw new Error('Service down');
+                        }
+                        
+                        // Handle unauthorized status (invalid credentials)
+                        if (response.status === 401) {
+                            document.getElementById('error-message').innerText = 'Invalid username or password';
+                            document.getElementById('error-message').style.display = 'block';
+                            return;
+                        }
+                        
+                        // Handle not found status (user doesn't exist)
+                        if (response.status === 404) {
+                            document.getElementById('error-message').innerText = 'User not found. Please check your username or create an account.';
+                            document.getElementById('error-message').style.display = 'block';
+                            return;
+                        }
+                        
+                        const data = await response.text();
+                        
+                        if (data.startsWith('success:')) {
+                            console.log("Login successful, redirecting to /storage");
+                            window.location.href = '/storage';
+                        } else {
+                            document.getElementById('error-message').innerText = data.replace('error: ', '');
+                            document.getElementById('error-message').style.display = 'block';
+                        }
+                    } catch (error) {
+                        console.error('Error:', error);
+                        if (error.message !== 'Service down') {
+                            document.getElementById('error-message').innerText = 'An error occurred. Please try again.';
+                            document.getElementById('error-message').style.display = 'block';
+                        }
+                    }
+                } else {
+                    document.getElementById('error-message').style.display = 'block';
+                }
+            });
+        });
+    </script>
+</body>
+</html>

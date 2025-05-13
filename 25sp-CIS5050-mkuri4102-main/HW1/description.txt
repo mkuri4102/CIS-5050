@@ -1,0 +1,8 @@
+Evaluation Result Table
+9.669666667	0.097666667	0.016333333	0.609666667	0.530666667	0.442333333	0.397000000	0.382666667	0.346000000	0.348000000	0.342333333	0.317333333	0.349666667	0.337333333	0.348333333	0.343000000	0.371000000	0.386333333	0.412000000	0.387333333
+9.730666667	1.934666667	0.941333333	0.624000000	0.560333333	0.502333333	0.450333333	0.401000000	0.372666667	0.364000000	0.355000000	0.353000000	0.353000000	0.355333333	0.338000000	0.389666667	0.410333333	0.405666667	0.446666667	0.459666667
+
+Explanation
+1) At N=3, multiple processes works extremely quickly compared to multiple threads. Maybe this is because processes don’t share memory, so there’s no synchronization overhead, which could lead to better performance, especially with just 3 processes.
+2) As N increases (i.e. the number of processes or the number of threads increases), the time it takes to sort the files drastically decreases. With just 1 process or thread it takes up to 10 seconds, but even if adding just one extra process or CPU, the time decreases significantly
+3) Using multiple processes or threads to do the sort tasks allows us to run concurrently on different CPU cores. This speeds execution because we are parallelizing the work. This reduces the time it takes to process large datasets, as multiple parts can be worked on simultaneously.

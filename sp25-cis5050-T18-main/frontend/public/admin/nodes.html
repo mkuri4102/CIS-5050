@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Console - Nodes</title>
+    <link rel="stylesheet" href="/styles/index.css">
+    <style>
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            margin-bottom: 20px;
+        }
+        .node-list {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        .node-list th, .node-list td {
+            padding: 8px 12px;
+            text-align: left;
+            border: 1px solid #ddd;
+        }
+        .node-list th {
+            background-color: #f2f2f2;
+        }
+        .node-list tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        .shard-title {
+            font-weight: bold;
+            background-color: #e3f2fd;
+        }
+        .shard-unavailable {
+            background-color: #ffebee;
+            color: #c62828;
+        }
+        .primary-node {
+            font-weight: bold;
+            color: #2e7d32;
+        }
+        .alive-node {
+            color: #2e7d32;
+        }
+        .dead-node {
+            color: #c62828;
+        }
+        .error {
+            color: red;
+            margin-bottom: 10px;
+        }
+        .node-actions {
+            margin-top: 20px;
+        }
+        .action-btn {
+            padding: 6px 12px;
+            margin-right: 10px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .refresh-btn {
+            background-color: #3949ab;
+            color: white;
+        }
+        .kill-btn {
+            background-color: #c62828;
+            color: white;
+        }
+        .restart-btn {
+            background-color: #2e7d32;
+            color: white;
+        }
+        .section-title {
+            margin-top: 30px;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 10px;
+        }
+        .data-btn {
+            background-color: #1976d2;
+            color: white;
+        }
+        .data-container {
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            display: none;
+        }
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+        }
+        .data-table th, .data-table td {
+            padding: 6px 12px;
+            text-align: left;
+            border: 1px solid #ddd;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 300px;
+        }
+        .data-table th {
+            background-color: #e3f2fd;
+        }
+        .data-table th:nth-child(1) {
+            width: 15%;
+        }
+        .data-table th:nth-child(2) {
+            width: 25%;
+        }
+        .data-table th:nth-child(3) {
+            width: 60%;
+        }
+        .data-table td:nth-child(3) {
+            word-break: break-all;
+            white-space: normal;
+            max-height: 100px;
+            overflow-y: auto;
+        }
+        .long-content {
+            max-width: 100%;
+            position: relative;
+        }
+        .expandable-cell {
+            cursor: pointer;
+        }
+        .expanded-content {
+            white-space: normal;
+            word-break: break-all;
+        }
+        .collapsed-content {
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            overflow: hidden;
+        }
+        .node-data-title {
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="loading">Loading...</div>
+        <div id="error" class="error" style="display: none;"></div>
+        
+        <h2 class="section-title">KVStore Nodes</h2>
+        <table class="node-list" id="nodes-table" style="display: none;">
+            <thead>
+                <tr>
+                    <th>Shard</th>
+                    <th>Role</th>
+                    <th>Node ID</th>
+                    <th>Address</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="nodes-body">
+            </tbody>
+        </table>
+
+        <h2 class="section-title">Frontend HTTP Servers</h2>
+        <table class="node-list" id="frontend-table" style="display: none;">
+            <thead>
+                <tr>
+                    <th>Server ID</th>
+                    <th>Address</th>
+                    <th>Port</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody id="frontend-body">
+            </tbody>
+        </table>
+
+        <div class="node-actions">
+            <button id="refresh-btn" class="action-btn refresh-btn">Refresh Status</button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            fetchAllNodeStatus();
+            document.getElementById('refresh-btn').addEventListener('click', fetchAllNodeStatus);
+        });
+
+        async function fetchAllNodeStatus() {
+            try {
+                document.getElementById('loading').style.display = 'block';
+                document.getElementById('nodes-table').style.display = 'none';
+                document.getElementById('frontend-table').style.display = 'none';
+                document.getElementById('error').style.display = 'none';
+                
+                const response = await fetch('/api/admin/nodes');
+                if (!response.ok) throw new Error('Failed to fetch node status');
+                const data = await response.json();
+                
+                if (!data.success && !data.frontendServers) {
+                    throw new Error(data.error || 'Failed to retrieve node status');
+                }
+                
+                if (data.nodes) {
+                    const nodeStatus = parseNodeStatus(data.nodes);
+                    displayBackendNodes(nodeStatus);
+                }
+                
+                if (data.frontendServers) {
+                    displayFrontendServers(data.frontendServers);
+                }
+                
+                document.getElementById('loading').style.display = 'none';
+                
+            } catch (error) {
+                console.error('Error fetching status:', error);
+                document.getElementById('loading').style.display = 'none';
+                const errorElement = document.getElementById('error');
+                errorElement.textContent = 'Error loading status: ' + error.message;
+                errorElement.style.display = 'block';
+            }
+        }
+
+        function displayBackendNodes(nodeStatus) {
+            const tableBody = document.getElementById('nodes-body');
+            tableBody.innerHTML = '';
+            
+            nodeStatus.forEach(shard => {
+                const isUnavailable = shard.primary === -1 && shard.alive.length === 0;
+                
+                const shardRow = document.createElement('tr');
+                shardRow.classList.add('shard-title');
+                if (isUnavailable) {
+                    shardRow.classList.add('shard-unavailable');
+                    shardRow.innerHTML = `<td colspan="6">Shard ${shard.id} - UNAVAILABLE</td>`;
+                } else {
+                    shardRow.innerHTML = `<td colspan="6">Shard ${shard.id}</td>`;
+                }
+                tableBody.appendChild(shardRow);
+                
+                if (shard.primary !== -1) {
+                    // Calculate port and address for the primary node
+                    const nodePort = 6001 + shard.primary;
+                    const hostname = window.location.hostname;
+                    const nodeAddress = `http://${hostname}:${nodePort}`;
+                    
+                    const primaryRow = document.createElement('tr');
+                    primaryRow.innerHTML = `
+                        <td></td>
+                        <td>Primary</td>
+                        <td class="primary-node">${shard.primary}</td>
+                        <td><a href="${nodeAddress}" target="_blank">${nodeAddress}</a></td>
+                        <td>Alive</td>
+                        <td>
+                            <button onclick="killNode(${shard.primary})" class="action-btn kill-btn">Kill</button>
+                            <button onclick="viewNodeData(${shard.primary})" class="action-btn data-btn">View Data</button>
+                        </td>
+                    `;
+                    tableBody.appendChild(primaryRow);
+                    
+                    // Add container for node data (initially hidden)
+                    const dataRow = document.createElement('tr');
+                    dataRow.innerHTML = `
+                        <td colspan="6">
+                            <div id="node-data-${shard.primary}" class="data-container">
+                                <div class="node-data-title">Data for Node ${shard.primary}</div>
+                                <div id="node-data-content-${shard.primary}">Loading data...</div>
+                            </div>
+                        </td>
+                    `;
+                    tableBody.appendChild(dataRow);
+                }
+                
+                const replicaNodes = shard.alive.filter(node => node !== shard.primary);
+                replicaNodes.forEach(nodeId => {
+                    // Calculate port and address for replica nodes
+                    const nodePort = 6001 + nodeId;
+                    const hostname = window.location.hostname;
+                    const nodeAddress = `http://${hostname}:${nodePort}`;
+                    
+                    const aliveRow = document.createElement('tr');
+                    aliveRow.innerHTML = `
+                        <td></td>
+                        <td>Replica</td>
+                        <td class="alive-node">${nodeId}</td>
+                        <td><a href="${nodeAddress}" target="_blank">${nodeAddress}</a></td>
+                        <td>Alive</td>
+                        <td>
+                            <button onclick="killNode(${nodeId})" class="action-btn kill-btn">Kill</button>
+                            <button onclick="viewNodeData(${nodeId})" class="action-btn data-btn">View Data</button>
+                        </td>
+                    `;
+                    tableBody.appendChild(aliveRow);
+                    
+                    // Add container for node data (initially hidden)
+                    const dataRow = document.createElement('tr');
+                    dataRow.innerHTML = `
+                        <td colspan="6">
+                            <div id="node-data-${nodeId}" class="data-container">
+                                <div class="node-data-title">Data for Node ${nodeId}</div>
+                                <div id="node-data-content-${nodeId}">Loading data...</div>
+                            </div>
+                        </td>
+                    `;
+                    tableBody.appendChild(dataRow);
+                });
+                
+                shard.dead.forEach(nodeId => {
+                    // Calculate port and address for dead nodes
+                    const nodePort = 6001 + nodeId;
+                    const hostname = window.location.hostname;
+                    const nodeAddress = `http://${hostname}:${nodePort}`;
+                    
+                    const deadRow = document.createElement('tr');
+                    deadRow.innerHTML = `
+                        <td></td>
+                        <td>Replica</td>
+                        <td class="dead-node">${nodeId}</td>
+                        <td>${nodeAddress}</td>
+                        <td>Dead</td>
+                        <td>
+                            <button onclick="restartNode(${nodeId})" class="action-btn restart-btn">Restart</button>
+                        </td>
+                    `;
+                    tableBody.appendChild(deadRow);
+                });
+            });
+            
+            document.getElementById('nodes-table').style.display = 'table';
+        }
+        
+        function displayFrontendServers(frontendServers) {
+            const tableBody = document.getElementById('frontend-body');
+            tableBody.innerHTML = '';
+            
+            frontendServers.forEach(server => {
+                // Construct server address as hostname:port
+                const hostname = window.location.hostname;
+                const serverAddress = `http://${hostname}:${server.port}`;
+                
+                const serverRow = document.createElement('tr');
+                serverRow.innerHTML = `
+                    <td>${server.serverId}</td>
+                    <td><a href="${serverAddress}" target="_blank">${serverAddress}</a></td>
+                    <td>${server.port}</td>
+                    <td class="${server.status === 'Alive' ? 'alive-node' : 'dead-node'}">${server.status}</td>
+                `;
+                tableBody.appendChild(serverRow);
+            });
+            
+            document.getElementById('frontend-table').style.display = 'table';
+        }
+
+        function killNode(nodeId) {
+            if (!confirm("Are you sure you want to kill node " + nodeId + "?")) {
+                return;
+            }
+            
+            document.getElementById('error').textContent = '';
+            document.getElementById('error').style.display = 'none';
+            
+            var xhr = new XMLHttpRequest();
+            xhr.open("POST", "/api/admin/kill-node", true);
+            xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+            
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState === 4) {
+                    if (xhr.status === 200) {
+                        alert("Node " + nodeId + " killed successfully");
+                        setTimeout(fetchAllNodeStatus, 1000);
+                    } else {
+                        alert("Error killing node: " + xhr.responseText);
+                    }
+                }
+            };
+            
+            xhr.send("nodeId=" + nodeId);
+        }
+        
+        function restartNode(nodeId) {
+            if (!confirm("Are you sure you want to restart node " + nodeId + "?")) {
+                return;
+            }
+            
+            document.getElementById('error').textContent = '';
+            document.getElementById('error').style.display = 'none';
+            
+            var xhr = new XMLHttpRequest();
+            xhr.open("POST", "/api/admin/restart-node", true);
+            xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+            
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState === 4) {
+                    if (xhr.status === 200) {
+                        alert("Node " + nodeId + " restarted successfully");
+                        setTimeout(function() {
+                            console.log("Refreshing after restart...");
+                            fetchAllNodeStatus();
+                            setTimeout(fetchAllNodeStatus, 2000);
+                        }, 1000);
+                    } else {
+                        alert("Error restarting node: " + xhr.responseText);
+                    }
+                }
+            };
+            
+            xhr.send("nodeId=" + nodeId);
+        }
+        
+        async function viewNodeData(nodeId) {
+            const dataContainer = document.getElementById(`node-data-${nodeId}`);
+            const dataContent = document.getElementById(`node-data-content-${nodeId}`);
+            
+            // Toggle visibility
+            if (dataContainer.style.display === 'block') {
+                dataContainer.style.display = 'none';
+                return;
+            }
+            
+            dataContainer.style.display = 'block';
+            dataContent.innerHTML = 'Loading data...';
+            
+            try {
+                // Calculate the port number for this node (nodeId is 0-8)
+                const port = 6001 + nodeId;
+                
+                // Fetch data from this specific node
+                const response = await fetch(`/api/admin/node-data?nodeId=${nodeId}`);
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch data from node ${nodeId}: ${response.status}`);
+                }
+                
+                const nodeData = await response.json();
+                
+                if (!nodeData.success) {
+                    throw new Error(nodeData.error || `Failed to retrieve data from node ${nodeId}`);
+                }
+                
+                // Debug the full data structure
+                console.log(`Complete nodeData for ${nodeId}:`, JSON.stringify(nodeData, null, 2));
+                
+                if (!nodeData.rows || nodeData.rows.length === 0) {
+                    dataContent.innerHTML = `No data found in node ${nodeId}.`;
+                    return;
+                }
+                
+                // Create table to display data
+                let html = `
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Row</th>
+                                <th>Column</th>
+                                <th>Value</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+                
+                let rowCount = 0;
+                
+                // Display rows and columns from this specific node
+                for (const row of nodeData.rows) {
+                    if (!nodeData.columns || !nodeData.columns[row] || nodeData.columns[row].length === 0) {
+                        html += `
+                            <tr>
+                                <td>${row}</td>
+                                <td colspan="2">[No columns]</td>
+                            </tr>
+                        `;
+                        rowCount++;
+                        continue;
+                    }
+                    
+                    // Debug values structure for troubleshooting
+                    console.log(`nodeData.values:`, nodeData.values);
+                    console.log(`Row ${row} values:`, nodeData.values ? nodeData.values[row] : 'undefined');
+                    
+                    for (const col of nodeData.columns[row]) {
+                        // Simple value extraction
+                        let value = '';
+                        let displayValue = '';
+                        
+                        if (nodeData.values && nodeData.values[row] && nodeData.values[row][col] !== undefined) {
+                            value = nodeData.values[row][col];
+                            // Truncate long values to 100 characters
+                            displayValue = value.length > 100 ? value.substring(0, 100) + '...' : value;
+                        }
+                        
+                        html += `
+                            <tr>
+                                <td title="${row}">${row}</td>
+                                <td title="${col}">${col}</td>
+                                <td title="${value}" class="expandable-cell" onclick="toggleCellContent(this)" data-full-value="${value}">${displayValue}</td>
+                            </tr>
+                        `;
+                        rowCount++;
+                    }
+                }
+                
+                html += `
+                        </tbody>
+                    </table>
+                `;
+                
+                if (rowCount === 0) {
+                    dataContent.innerHTML = `No data found for node ${nodeId}.`;
+                } else {
+                    dataContent.innerHTML = html;
+                }
+                
+            } catch (error) {
+                console.error(`Error fetching data from node ${nodeId}:`, error);
+                dataContent.innerHTML = `Error loading data: ${error.message}`;
+            }
+        }
+
+        function toggleCellContent(cell) {
+            const fullValue = cell.getAttribute('data-full-value');
+            
+            if (cell.classList.contains('expanded-content')) {
+                cell.classList.remove('expanded-content');
+                if (fullValue.length > 100) {
+                    cell.textContent = fullValue.substring(0, 100) + '...';
+                }
+            } else {
+                cell.classList.add('expanded-content');
+                cell.textContent = fullValue;
+            }
+        }
+
+        function parseNodeStatus(statusStr) {
+            let cleanedStr = statusStr.replace(/^\+OK\s+/, '');
+            
+            if (!cleanedStr.includes("Shard")) {
+                console.error("No Shard information found in response");
+                return [];
+            }
+            
+            const shardParts = cleanedStr.split("Shard");
+            
+            const result = [];
+            
+            for (let i = 1; i < shardParts.length; i++) {
+                const part = shardParts[i];
+                
+                const shardId = part.split(':')[0].trim();
+                
+                const shard = {
+                    id: shardId,
+                    primary: -1,
+                    alive: [],
+                    dead: []
+                };
+                
+                const primaryPos = part.indexOf("Primary:");
+                if (primaryPos >= 0) {
+                    const primaryText = part.substring(primaryPos + "Primary:".length).trim();
+                    const primaryValue = parseInt(primaryText.split(/\s+/)[0]);
+                    if (primaryValue !== -1) {
+                        shard.primary = primaryValue;
+                    }
+                }
+                
+                const alivePos = part.indexOf("Alive:");
+                if (alivePos >= 0) {
+                    const deadPos = part.indexOf("Dead:", alivePos);
+                    if (deadPos >= 0) {
+                        const aliveText = part.substring(alivePos + "Alive:".length, deadPos).trim();
+                        
+                        if (aliveText !== "-1") {
+                            shard.alive = aliveText.split(/\s+/).map(n => parseInt(n));
+                        }
+                    }
+                }
+                
+                const deadPos = part.indexOf("Dead:");
+                if (deadPos >= 0) {
+                    let deadText = part.substring(deadPos + "Dead:".length).trim();
+                    
+                    deadText = deadText.split(/\s+Shard/)[0].trim();
+                    
+                    if (deadText !== "-1") {
+                        shard.dead = deadText.split(/\s+/).map(n => parseInt(n));
+                    }
+                }
+                
+                result.push(shard);
+            }
+            
+            return result;
+        }
+    </script>
+</body>

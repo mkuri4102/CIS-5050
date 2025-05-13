@@ -1,0 +1,9 @@
+*
+!*/
+!*.*
+!Makefile
+!makefile
+*.o
+/backend/data/*
+*.dSYM
+*.a

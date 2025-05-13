@@ -1,0 +1,11 @@
+127.0.0.1:6000  # Tablet 0 (original primary for shard 0)
+127.0.0.1:6001  # Tablet 1 (original secondary for shard 0)
+127.0.0.1:6002  # Tablet 2 (original secondary for shard 0)
+
+127.0.0.1:6003  # Tablet 3 (original primary for shard 1)
+127.0.0.1:6004  # Tablet 4 (original secondary for shard 1)
+127.0.0.1:6005  # Tablet 5 (original secondary for shard 1)
+
+127.0.0.1:6006  # Tablet 6 (original primary for shard 2)
+127.0.0.1:6007  # Tablet 7 (original secondary for shard 2)
+127.0.0.1:6008  # Tablet 8 (original secondary for shard 2)

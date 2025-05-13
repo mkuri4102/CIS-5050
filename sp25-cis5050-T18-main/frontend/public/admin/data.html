@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Console - Data</title>
+    <link rel="stylesheet" href="/styles/index.css">
+    <style>
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            margin-bottom: 20px;
+        }
+        .data-list {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        .data-list th, .data-list td {
+            padding: 8px 12px;
+            text-align: left;
+            border: 1px solid #ddd;
+        }
+        .data-list th {
+            background-color: #f2f2f2;
+        }
+        .data-list tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        .error {
+            color: red;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>All Stored Data</h1>
+        <div id="loading">Loading data...</div>
+        <div id="error" class="error" style="display: none;"></div>
+        <table class="data-list" id="data-table" style="display: none;">
+            <thead>
+                <tr>
+                    <th>Row</th>
+                    <th>Column</th>
+                    <th>Value</th>
+                </tr>
+            </thead>
+            <tbody id="data-body">
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            fetchData();
+        });
+
+        async function fetchData() {
+            try {
+                // Fetch all rows
+                const rowsResponse = await fetch('/api/admin/rows');
+                
+                if (!rowsResponse.ok) {
+                    const errorText = await rowsResponse.text();
+                    throw new Error(`Server error (${rowsResponse.status}): ${errorText}`);
+                }
+                
+                const rowsData = await rowsResponse.json();
+                
+                const tableBody = document.getElementById('data-body');
+                
+                if (!rowsData.data || rowsData.data.length === 0) {
+                    document.getElementById('loading').textContent = 'No data found in database.';
+                    return;
+                }
+                
+                for (const row of rowsData.data) {
+                    try {
+                        const colsResponse = await fetch(`/api/admin/columns?row=${encodeURIComponent(row)}`);
+                        if (!colsResponse.ok) {
+                            console.warn(`Could not get columns for row ${row}: ${colsResponse.status}`);
+                            continue;
+                        }
+                        
+                        const colsData = await colsResponse.json();
+                        
+                        if (!colsData.data || colsData.data.length === 0) {
+                            // Add row with no columns
+                            const tr = document.createElement('tr');
+                            tr.innerHTML = `
+                                <td>${row}</td>
+                                <td colspan="2">[No columns]</td>
+                            `;
+                            tableBody.appendChild(tr);
+                            continue;
+                        }
+                        
+                        // Get values for each column
+                        for (const col of colsData.data) {
+                            try {
+                                const valResponse = await fetch(`/api/admin/value?row=${encodeURIComponent(row)}&col=${encodeURIComponent(col)}`);
+                                if (!valResponse.ok) {
+                                    console.warn(`Could not get value for ${row}/${col}: ${valResponse.status}`);
+                                    
+                                    // Add row with error message
+                                    const tr = document.createElement('tr');
+                                    tr.innerHTML = `
+                                        <td>${row}</td>
+                                        <td>${col}</td>
+                                        <td>[Error: ${valResponse.status}]</td>
+                                    `;
+                                    tableBody.appendChild(tr);
+                                    continue;
+                                }
+                                
+                                const valData = await valResponse.json();
+                                console.log(`Value for ${row}/${col}:`, valData);
+                                
+                                const tr = document.createElement('tr');
+                                tr.innerHTML = `
+                                    <td>${row}</td>
+                                    <td>${col}</td>
+                                    <td>${valData.value || ''}</td>
+                                `;
+                                tableBody.appendChild(tr);
+                            } catch (columnError) {
+                                console.error(`Error fetching value for ${row}/${col}:`, columnError);
+                                const tr = document.createElement('tr');
+                                tr.innerHTML = `
+                                    <td>${row}</td>
+                                    <td>${col}</td>
+                                    <td>[Error: ${columnError.message}]</td>
+                                `;
+                                tableBody.appendChild(tr);
+                            }
+                        }
+                    } catch (rowError) {
+                        console.error(`Error fetching columns for row ${row}:`, rowError);
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td>${row}</td>
+                            <td colspan="2">[Error: ${rowError.message}]</td>
+                        `;
+                        tableBody.appendChild(tr);
+                    }
+                }
+                
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('data-table').style.display = 'table';
+                
+            } catch (error) {
+                console.error('Error fetching data:', error);
+                document.getElementById('loading').style.display = 'none';
+                const errorElement = document.getElementById('error');
+                errorElement.textContent = 'Error loading data: ' + error.message;
+                errorElement.style.display = 'block';
+            }
+        }
+    </script>
+</body>
+</html> 

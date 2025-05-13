@@ -1,0 +1,684 @@
+<!DOCTYPE html> 
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>File Storage - PennCloud</title>
+    <link rel="stylesheet" href="styles/storage.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@600&display=swap');
+
+        .header {
+            font-family: 'Poppins', sans-serif;
+            font-size: 28px;
+            font-weight: 600;
+            color: #3949ab;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        .nav-links {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0 0 0;
+            margin-bottom: 10px;
+        }
+
+        .logout-btn {
+            background-color: #f44336;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .logout-btn:hover {
+            background-color: #d32f2f;
+        }
+
+        .error-message {
+            color: red;
+            margin-top: 10px;
+        }
+
+        .success-message {
+            color: green;
+            margin-top: 10px;
+        }
+
+        .breadcrumb {
+            margin: 10px 0;
+            font-size: 14px;
+        }
+
+        .breadcrumb a {
+            color: #2196F3;
+            text-decoration: none;
+        }
+
+        .breadcrumb a:hover {
+            text-decoration: underline;
+        }
+
+        .folder-icon {
+            color: #FFC107;
+            margin-right: 5px;
+        }
+
+        .file-icon {
+            margin-right: 5px;
+        }
+
+        .file-icon.pdf { color: #F44336; }
+        .file-icon.doc, .file-icon.docx { color: #2196F3; }
+        .file-icon.xls, .file-icon.xlsx { color: #4CAF50; }
+        .file-icon.txt { color: #9E9E9E; }
+        .file-icon.jpg, .file-icon.jpeg, .file-icon.png, .file-icon.gif { color: #FF9800; }
+        .file-icon.zip, .file-icon.rar { color: #795548; }
+        .file-icon.mp3, .file-icon.wav { color: #9C27B0; }
+        .file-icon.mp4, .file-icon.avi { color: #E91E63; }
+        .file-icon.html, .file-icon.css, .file-icon.js { color: #607D8B; }
+        .file-icon.default { color: #9E9E9E; }
+
+        .dialog {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .dialog-content {
+            background-color: white;
+            padding: 20px;
+            border-radius: 5px;
+            min-width: 300px;
+        }
+
+        .dialog-buttons {
+            margin-top: 20px;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .name-cell {
+            cursor: pointer;
+        }
+
+        .name-cell.editing {
+            padding: 2px;
+        }
+
+        .name-cell input {
+            width: 100%;
+            padding: 2px;
+        }
+
+        .files-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            background-color: white;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+        }
+
+        .files-table th {
+            background-color: #f5f5f5;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            color: #333;
+            border-bottom: 2px solid #ddd;
+        }
+
+        .files-table td {
+            padding: 12px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .files-table tr:hover {
+            background-color: #f9f9f9;
+        }
+
+        .file-type {
+            color: #666;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">PennCloud</div>
+
+        <div class="nav-links">
+            <div>
+                <a href="/webmail">Webmail</a>
+            </div>
+            <div>
+                <button onclick="logout()" class="logout-btn">Logout</button>
+            </div>
+        </div>
+
+        <h1>File Storage</h1>
+
+        <div class="breadcrumb" id="breadcrumb">
+            <a href="/storage">Root</a>
+        </div>
+
+        
+        <div class="upload-section">
+            <h2>Upload a File</h2>
+            <form id="upload-form" enctype="multipart/form-data">
+                <input type="file" id="file-input" class="file-input" name="file" required>
+                <button type="submit" class="upload-btn">Upload</button>
+                <div id="upload-message" class="error-message"></div>
+            </form>
+        </div>
+        
+        <div class="folder-section">
+            <h2>Create a Folder</h2>
+            <form id="folder-form">
+                <input type="text" id="folder-name" class="folder-input" name="folder" required 
+                       placeholder="Folder name" pattern="[^/]+" title="Folder name cannot contain slashes">
+                <button type="submit" class="create-folder-btn">Create Folder</button>
+                <div id="folder-message" class="error-message"></div>
+            </form>
+        </div>
+        
+        <h2>Your Files</h2>
+        <table class="files-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Type</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="files-list">
+            </tbody>
+        </table>
+    </div>
+    
+    <div id="move-dialog" class="dialog" style="display: none;">
+        <div class="dialog-content">
+            <h3>Move Item</h3>
+            <div id="move-options"></div>
+            <div class="dialog-buttons">
+                <button onclick="cancelMove()">Cancel</button>
+                <button onclick="confirmMove()">Move</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let currentPath = '/';
+        let currentMoveItem = null;
+        let currentMoveType = null;
+        
+        function getFileIcon(filename) {
+            const extension = filename.split('.').pop().toLowerCase();
+            const iconMap = {
+                'pdf': '📄',
+                'doc': '📝',
+                'docx': '📝',
+                'xls': '📊',
+                'xlsx': '📊',
+                'txt': '📄',
+                'jpg': '🖼️',
+                'jpeg': '🖼️',
+                'png': '🖼️',
+                'gif': '🖼️',
+                'zip': '📦',
+                'rar': '📦',
+                'mp3': '🎵',
+                'wav': '🎵',
+                'mp4': '🎬',
+                'avi': '🎬',
+                'html': '🌐',
+                'css': '🎨',
+                'js': '⚡'
+            };
+            return iconMap[extension] || '📄';
+        }
+
+        function getFileType(filename) {
+            const extension = filename.split('.').pop().toLowerCase();
+            const typeMap = {
+                'pdf': 'PDF Document',
+                'doc': 'Word Document',
+                'docx': 'Word Document',
+                'xls': 'Excel Spreadsheet',
+                'xlsx': 'Excel Spreadsheet',
+                'txt': 'Text File',
+                'jpg': 'JPEG Image',
+                'jpeg': 'JPEG Image',
+                'png': 'PNG Image',
+                'gif': 'GIF Image',
+                'zip': 'ZIP Archive',
+                'rar': 'RAR Archive',
+                'mp3': 'MP3 Audio',
+                'wav': 'WAV Audio',
+                'mp4': 'MP4 Video',
+                'avi': 'AVI Video',
+                'html': 'HTML Document',
+                'css': 'CSS Stylesheet',
+                'js': 'JavaScript File'
+            };
+            return typeMap[extension] || 'File';
+        }
+
+        function updateBreadcrumb() {
+            const breadcrumb = document.getElementById('breadcrumb');
+            const parts = currentPath.split('/').filter(p => p);
+            
+            let html = '<a href="/storage">Root</a>';
+            let path = '';
+            
+            for (let i = 0; i < parts.length; i++) {
+                path += '/' + parts[i];
+                html += ' / <a href="/storage' + path + '">' + parts[i] + '</a>';
+            }
+            
+            breadcrumb.innerHTML = html;
+            
+            const links = breadcrumb.getElementsByTagName('a');
+            for (let i = 0; i < links.length; i++) {
+                links[i].addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const href = this.getAttribute('href');
+                    currentPath = href.substring('/storage'.length);
+                    if (currentPath === '') currentPath = '/';
+                    window.history.pushState({}, '', href);
+                    updateBreadcrumb();
+                    loadFiles();
+                });
+            }
+        }
+        
+        async function loadFiles() {
+            try {
+                const response = await fetch('/storage/list' + currentPath, {
+                    credentials: 'same-origin'
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                if (!data || !data.files) {
+                    throw new Error('Invalid response format');
+                }
+                
+                const filesList = document.getElementById('files-list');
+                filesList.innerHTML = '';
+                
+                if (data.files.length === 0) {
+                    const row = document.createElement('tr');
+                    row.innerHTML = '<td colspan="3">No files found</td>';
+                    filesList.appendChild(row);
+                    return;
+                }
+                
+                data.files.forEach(file => {
+                    const row = document.createElement('tr');
+                    let actions = '';
+                    
+                    if (file.type === 'folder') {
+                        actions = `<button onclick="navigateToFolder('${file.name}')">Open</button> ` +
+                                 `<button onclick="moveItem('${file.name}', 'folder')">Move</button> ` +
+                                 `<button onclick="deleteFolder('${file.name}')">Delete</button>`;
+                    } else {
+                        actions = `<button onclick="downloadFile('${file.name}')">Download</button> ` +
+                                 `<button onclick="moveItem('${file.name}', 'file')">Move</button> ` +
+                                 `<button onclick="deleteFile('${file.name}')">Delete</button>`;
+                    }
+                    
+                    const fileType = file.type === 'folder' ? 'Folder' : getFileType(file.name);
+                    const icon = file.type === 'folder' ? '📁' : getFileIcon(file.name);
+                    
+                    row.innerHTML = `
+                        <td><span class="name-cell" onclick="makeEditable(this, '${file.name}', '${file.type}')">
+                            <span class="file-icon">${icon}</span>${file.name}
+                        </span></td>
+                        <td class="file-type">${fileType}</td>
+                        <td>${actions}</td>
+                    `;
+                    filesList.appendChild(row);
+                });
+            } catch (error) {
+                console.error('Error loading files:', error);
+                const filesList = document.getElementById('files-list');
+                filesList.innerHTML = '<tr><td colspan="3">Error loading files: ' + error.message + '</td></tr>';
+            }
+        }
+        
+        function navigateToFolder(folderName) {
+            currentPath += (currentPath === '/' ? '' : '/') + folderName;
+            window.history.pushState({}, '', '/storage' + currentPath);
+            updateBreadcrumb();
+            loadFiles();
+        }
+        
+        async function downloadFile(filename) {
+            window.location.href = `/storage/download${currentPath}${currentPath === '/' ? '' : '/'}${filename}`;
+        }
+        
+        async function deleteFile(filename) {
+            if (!confirm('Are you sure you want to delete this file?')) return;
+            
+            try {
+                const response = await fetch('/storage/delete' + currentPath, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: 'filename=' + encodeURIComponent(filename)
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    loadFiles();
+                } else {
+                    alert('Failed to delete file: ' + data.message);
+                }
+            } catch (error) {
+                console.error('Error deleting file:', error);
+                alert('Failed to delete file');
+            }
+        }
+        
+        async function deleteFolder(folderName) {
+            if (!confirm('Are you sure you want to delete this folder and all its contents?')) return;
+            
+            try {
+                const response = await fetch('/storage/delete_folder' + currentPath + '/' + folderName, {
+                    method: 'POST',
+                    credentials: 'same-origin'
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    loadFiles();
+                } else {
+                    alert('Failed to delete folder: ' + data.message);
+                }
+            } catch (error) {
+                console.error('Error deleting folder:', error);
+                alert('Failed to delete folder');
+            }
+        }
+        
+        document.getElementById('upload-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData();
+            const fileInput = document.getElementById('file-input');
+            
+            if (fileInput.files.length === 0) {
+                document.getElementById('upload-message').textContent = 'Please select a file';
+                return;
+            }
+            
+            formData.append('file', fileInput.files[0]);
+            formData.append('path', currentPath);
+            
+            try {
+                const response = await fetch('/storage/upload' + currentPath, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    document.getElementById('upload-message').textContent = 'File uploaded successfully';
+                    document.getElementById('upload-message').className = 'success-message';
+                    fileInput.value = '';
+                    loadFiles();
+                } else {
+                    document.getElementById('upload-message').textContent = 'Upload failed: ' + data.message;
+                    document.getElementById('upload-message').className = 'error-message';
+                }
+            } catch (error) {
+                console.error('Error uploading file:', error);
+                document.getElementById('upload-message').textContent = 'Upload failed';
+                document.getElementById('upload-message').className = 'error-message';
+            }
+        });
+        
+        document.getElementById('folder-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const folderName = document.getElementById('folder-name').value;
+            if (!folderName) {
+                document.getElementById('folder-message').textContent = 'Please enter a folder name';
+                return;
+            }
+            
+            try {
+                const response = await fetch('/storage/create_folder' + currentPath, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: 'folder=' + encodeURIComponent(folderName)
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    document.getElementById('folder-message').textContent = 'Folder created successfully';
+                    document.getElementById('folder-message').className = 'success-message';
+                    document.getElementById('folder-name').value = '';
+                    loadFiles();
+                } else {
+                    document.getElementById('folder-message').textContent = 'Failed to create folder: ' + data.message;
+                    document.getElementById('folder-message').className = 'error-message';
+                }
+            } catch (error) {
+                console.error('Error creating folder:', error);
+                document.getElementById('folder-message').textContent = 'Failed to create folder';
+                document.getElementById('folder-message').className = 'error-message';
+            }
+        });
+        
+        async function logout() {
+            try {
+                const response = await fetch('/api/logout', {
+                    method: 'POST',
+                    credentials: 'same-origin'
+                });
+                
+                if (response.ok || response.redirected) {
+                    window.location.href = '/login';
+                }
+            } catch (error) {
+                console.error('Logout failed:', error);
+                window.location.href = '/login';
+            }
+        }
+        
+        function makeEditable(element, name, type) {
+            if (element.classList.contains('editing')) return;
+            
+            const currentName = name;
+            element.setAttribute('data-original-name', currentName);
+            element.classList.add('editing');
+            element.innerHTML = `<input type="text" value="${currentName}" onblur="renameItem(this, '${type}')" onkeypress="handleRenameKeyPress(event, this, '${type}')">`;
+            element.querySelector('input').focus();
+        }
+        
+        function handleRenameKeyPress(event, input, type) {
+            if (event.key === 'Enter') {
+                renameItem(input, type);
+            }
+        }
+        
+        async function renameItem(input, type) {
+            const newName = input.value.trim();
+            const row = input.closest('tr');
+            const oldName = row.querySelector('.name-cell').getAttribute('data-original-name');
+            
+            if (newName && newName !== oldName) {
+                try {
+                    const response = await fetch('/storage/rename' + currentPath, {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: `old_name=${encodeURIComponent(oldName)}&new_name=${encodeURIComponent(newName)}&type=${type}`
+                    });
+                    
+                    const data = await response.json();
+                    if (data.success) {
+                        loadFiles();
+                    } else {
+                        alert('Failed to rename: ' + data.message);
+                        loadFiles();
+                    }
+                } catch (error) {
+                    console.error('Error renaming:', error);
+                    alert('Failed to rename');
+                    loadFiles();
+                }
+            } else {
+                loadFiles();
+            }
+        }
+        
+        async function moveItem(name, type) {
+            currentMoveItem = name;
+            currentMoveType = type;
+            
+            try {
+                const response = await fetch('/storage/list', {
+                    credentials: 'same-origin'
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                if (!data || !data.files) {
+                    throw new Error('Invalid response format');
+                }
+                
+                const dialog = document.getElementById('move-dialog');
+                const options = document.getElementById('move-options');
+                options.innerHTML = '';
+                
+                const folders = new Map();
+                data.files.forEach(file => {
+                    if (file.type === 'folder') {
+                        folders.set(file.path, {
+                            name: file.name,
+                            path: file.path,
+                            parentPath: file.path.substring(0, file.path.lastIndexOf('/')) || '/'
+                        });
+                    }
+                });
+                
+                const rootOption = document.createElement('div');
+                rootOption.innerHTML = `<input type="radio" name="destination" value="/" id="root-folder">
+                                       <label for="root-folder">Root Folder</label>`;
+                options.appendChild(rootOption);
+                
+                const currentPath = window.location.pathname.substring('/storage'.length);
+                const currentItemPath = currentPath + (currentPath.endsWith('/') ? '' : '/') + name;
+                
+                function buildFolderOptions(parentPath = '/', depth = 1) {
+                    const children = Array.from(folders.entries())
+                        .filter(([_, folder]) => {
+                            return folder.parentPath === parentPath;
+                        });
+                    
+                    children.sort((a, b) => a[1].name.localeCompare(b[1].name));
+                    
+                    children.forEach(([path, folder]) => {
+                        const option = document.createElement('div');
+                        const padding = depth * 20;
+                        
+                        option.innerHTML = `
+                            <div style="padding-left: ${padding}px">
+                                <input type="radio" name="destination" value="${path}" id="folder-${path.replace(/\//g, '_')}">
+                                <label for="folder-${path.replace(/\//g, '_')}">${folder.name}</label>
+                            </div>
+                        `;
+                        options.appendChild(option);
+                        
+                        buildFolderOptions(path, depth + 1);
+                    });
+                }
+                
+                buildFolderOptions();
+                
+                dialog.style.display = 'flex';
+            } catch (error) {
+                console.error('Error loading folders:', error);
+                alert('Failed to load folders');
+            }
+        }
+        
+        function cancelMove() {
+            document.getElementById('move-dialog').style.display = 'none';
+            currentMoveItem = null;
+            currentMoveType = null;
+        }
+        
+        function confirmMove() {
+            const selectedFolder = document.querySelector('input[name="destination"]:checked');
+            if (!selectedFolder) {
+                alert('Please select a destination folder');
+                return;
+            }
+            
+            const destination = selectedFolder.value;
+            const targetPath = destination === '/' ? '/' + currentMoveItem : destination + '/' + currentMoveItem;
+            
+            fetch('/storage/move' + currentPath, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `item_name=${encodeURIComponent(currentMoveItem)}&destination=${encodeURIComponent(destination)}&type=${currentMoveType}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    loadFiles();
+                } else {
+                    alert('Failed to move: ' + data.message);
+                }
+                document.getElementById('move-dialog').style.display = 'none';
+                currentMoveItem = null;
+                currentMoveType = null;
+            })
+            .catch(error => {
+                console.error('Error moving:', error);
+                alert('Failed to move');
+                document.getElementById('move-dialog').style.display = 'none';
+                currentMoveItem = null;
+                currentMoveType = null;
+            });
+        }
+
+        // Initialize the page
+        document.addEventListener('DOMContentLoaded', function() {
+            updateBreadcrumb();
+            loadFiles();
+        });
+    </script>
+</body>
+</html>
